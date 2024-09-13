@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Analysis Results</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 20px;
+            background-color: #f4f6f9;
+            color: #495057;
+        }
+        h1 {
+            text-align: center;
+            color: #f7fafc;
+            background-color: #4a5568;
+            padding: 15px;
+            border-radius: 10px;
+            max-width: 1000px;
+            margin: 20px auto;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            font-size: 28px;
+            letter-spacing: 1.2px;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 20px auto;
+            padding: 0 15px;
+        }
+        .button {
+            display: block;
+            width: 200px;
+            margin: 20px auto;
+            background-color: #3182ce;
+            color: #fff;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 18px;
+            text-align: center;
+            text-decoration: none;
+        }
+        .button:hover {
+            background-color: #2b6cb0;
+        }
+        .scrollable-table {
+            overflow-x: auto;
+            overflow-y: auto;
+            max-height: 500px; /* Adjust height as needed */
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            border-radius: 4px;
+            background-color: #ffffff;
+        }
+        thead th {
+            position: sticky;
+            top: 0;
+            background-color: #4a5568;
+            color: #ffffff;
+            border-bottom: 2px solid #ddd;
+            z-index: 10;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border: 1px solid #ddd;
+        }
+        th {
+            font-size: 16px;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        tr:hover {
+            background-color: #f1f1f1;
+        }
+        .index-col {
+            width: 50px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <h1>Analysis Results</h1>
+    <div class="container">
+        <a href="{{ url_for('download_file', filename='result.csv') }}" class="button">Download CSV</a>
+        <div class="scrollable-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th class="index-col">#</th>
+                        {% for col in columns %}
+                        <th>{{ col }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in rows %}
+                    <tr>
+                        <td class="index-col">{{ loop.index }}</td>
+                        {% for cell in row %}
+                        <td>{{ cell }}</td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</body>
+</html>
