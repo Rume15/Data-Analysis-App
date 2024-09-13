@@ -1,6 +1,7 @@
-from flask import Flask, request, redirect, url_for, render_template, send_file
+from flask import Flask, request, redirect, url_for, render_template, send_file, abort
 import pandas as pd
 import os
+import tempfile
 from analyze_function import analyze_top_fields
 
 app = Flask(__name__)
@@ -12,6 +13,7 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 # Global variable to store the dataset
 dataset = None
+result_file_path = None  # Initialize the global variable for result file path
 
 @app.route("/", methods=['GET', 'POST'])
 def index():
@@ -35,6 +37,7 @@ def index():
 
 @app.route('/analyze', methods=['POST'])
 def analyze():
+    global dataset, result_file_path  # Declare the global variables
     if request.method == 'POST':
         if dataset is None:
             return redirect(url_for('index'))
@@ -54,21 +57,28 @@ def analyze():
         top_n = int(request.form.get('top_n'))
         display_mode = request.form.get('display_mode') or 'None'
 
-        # Call your analyze function
-        result_file = 'result.csv'
-        analyze_top_fields(dataset, [group_by_col], agg_dict, sort_by_col, top_n, result_file, empty_fields=[], display_mode=display_mode)
+        # Create a temporary file for results
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as temp_file:
+            result_file_path = temp_file.name
+
+        analyze_top_fields(dataset, [group_by_col], agg_dict, sort_by_col, top_n, result_file_path, empty_fields=[], display_mode=display_mode)
         
         # Read the result file and prepare data for the results page
-        result_df = pd.read_csv(result_file)
+        result_df = pd.read_csv(result_file_path)
         columns = result_df.columns.tolist()
         rows = result_df.values.tolist()
 
-        # Return the results as a downloadable CSV file
-        return render_template('results.html', columns=columns, rows=rows, result_file=result_file)
+        # Render results in a template with a download link
+        return render_template('results.html', columns=columns, rows=rows)
 
-@app.route('/download/<filename>')
-def download_file(filename):
-    return send_file(filename, as_attachment=True)
+@app.route('/download')
+def download_file():
+    global result_file_path
+    # Serve the file from the temporary directory
+    if result_file_path is None or not os.path.exists(result_file_path):
+        abort(404)
+    
+    return send_file(result_file_path, as_attachment=True, download_name='result.csv')
 
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5000, debug=True)
