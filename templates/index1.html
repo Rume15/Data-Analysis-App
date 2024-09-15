@@ -27,11 +27,11 @@
             padding: 25px;
             border-radius: 10px;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-            max-width: 600px; /* Adjusted to match the header */
+            max-width: 600px;
             margin: 0 auto 20px;
         }
         label, input[type="number"], select, input[type="file"] {
-            width: 100%; /* Ensure all form elements take full width */
+            width: 100%;
         }
         label {
             display: block;
@@ -72,28 +72,34 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            width: 100%; /* Ensure it aligns with form width */
+            width: 100%;
         }
         .centered {
             text-align: center;
         }
         .half-width {
-            width: 48%; /* Adjust to 48% to ensure two fields align side by side */
+            width: 48%;
         }
         .move-buttons {
             display: flex;
-            flex-direction: column;
+            align-items: center;
             justify-content: space-around;
         }
         button.move-up, button.move-down {
             padding: 5px;
             font-size: 12px;
-            margin: 3px 0;
+            margin: 0 5px;
             cursor: pointer;
             background-color: transparent;
             color: #3182ce;
             border: none;
             font-size: 18px;
+        }
+        .delete-icon {
+            color: red;
+            cursor: pointer;
+            font-size: 20px;
+            margin-left: 10px;
         }
     </style>
 </head>
@@ -111,6 +117,7 @@
     <form action="/analyze" method="post">
         <label for="group_by_col">Group By Column:</label>
         <select name="group_by_col" id="group_by_col" required>
+            <option value="" disabled selected>Select Column to Group By</option>
             {% for col in group_by_cols %}
             <option value="{{ col }}">{{ col }}</option>
             {% endfor %}
@@ -118,29 +125,32 @@
 
         <label for="sort_by_col">Sort By Column:</label>
         <select name="sort_by_col" id="sort_by_col" required>
+            <option value="" disabled selected>Select Column to Sort By</option>
             {% for col in sort_by_cols %}
             <option value="{{ col }}">{{ col }}</option>
             {% endfor %}
         </select>
 
         <label for="num_agg_fields">Number of Aggregate Fields:</label>
-        <input type="number" id="num_agg_fields" name="num_agg_fields" min="1" value="1" required>
+        <input type="number" id="num_agg_fields" name="num_agg_fields" min="0" value="0" required>
 
         <div id="agg_fields"></div>
 
         <label for="top_n">Top N:</label>
-        <input type="number" id="top_n" name="top_n" min="1" required>
+        <input type="number" id="top_n" name="top_n" min="0" value="0" required>
 
         <label for="display_mode">Display Mode:</label>
         <select name="display_mode" id="display_mode">
             <option value="None">None</option>
             <option value="all">All</option>
-            <option value="some">Some</option>
+            <option value="some" selected>Some</option>
         </select>
+
+        <input type="hidden" id="agg_fields_order" name="agg_fields_order">
 
         <div class="centered">
             <input type="submit" value="Analyze">
-            <input type="reset" value="Reset" onclick="document.getElementById('agg_fields').innerHTML = ''; document.getElementById('num_agg_fields').value = 1;">
+            <input type="reset" value="Reset" onclick="resetForm();">
         </div>
     </form>
 
@@ -148,33 +158,60 @@
         document.getElementById('num_agg_fields').addEventListener('change', function() {
             var numFields = parseInt(this.value);
             var container = document.getElementById('agg_fields');
-            container.innerHTML = '';
+            var existingFields = container.querySelectorAll('.field-group').length;
 
-            for (var i = 1; i <= numFields; i++) {
-                container.innerHTML += `
-                    <div class="field-group" data-index="${i}">
-                        <select name="agg_field${i}" class="half-width" required>
-                            <option value="" disabled selected>Select Field</option>
-                            {% for col in group_by_cols %}
-                                <option value="{{ col }}">{{ col }}</option>
-                            {% endfor %}
-                        </select>
-                        <select name="agg_type${i}" class="half-width" required>
-                            <option value="" disabled selected>Select Aggregate Type</option>
-                            <option value="first">First</option>
-                            <option value="nunique">Unique Count</option>
-                            <option value="sum">Sum</option>
-                        </select>
-                        <div class="move-buttons">
-                            <button type="button" class="move-up">&#9650;</button>
-                            <button type="button" class="move-down">&#9660;</button>
-                        </div>
-                    </div>
-                `;
+            if (numFields > existingFields) {
+                for (var i = existingFields + 1; i <= numFields; i++) {
+                    addFieldGroup(i);
+                }
+            } else if (numFields < existingFields) {
+                for (var i = existingFields; i > numFields; i--) {
+                    removeLastFieldGroup();
+                }
             }
-
-            addMoveButtonsListeners();
         });
+
+        function addFieldGroup(index) {
+            var container = document.getElementById('agg_fields');
+            var fieldGroup = document.createElement('div');
+            fieldGroup.className = 'field-group';
+            fieldGroup.dataset.index = index;
+
+            fieldGroup.innerHTML = 
+                '<div class="move-buttons">' +
+                    '<button type="button" class="move-up">&#9650;</button>' +
+                    '<button type="button" class="move-down">&#9660;</button>' +
+                '</div>' +
+                '<select name="agg_field' + index + '" class="half-width" required>' +
+                    '<option value="" disabled selected>Select Field</option>' +
+                    '{% for col in group_by_cols %}' +
+                    '<option value="{{ col }}">{{ col }}</option>' +
+                    '{% endfor %}' +
+                '</select>' +
+                '<select name="agg_type' + index + '" class="half-width" required>' +
+                    '<option value="" disabled selected>Select Aggregate Type</option>' +
+                    '<option value="first">First</option>' +
+                    '<option value="nunique">Unique Count</option>' +
+                    '<option value="sum">Sum</option>' +
+                '</select>' +
+                '<span class="delete-icon" onclick="removeFieldGroup(this)">&#10006;</span>';
+            container.appendChild(fieldGroup);
+            addMoveButtonsListeners();
+            disableGroupByInAggFields();
+            updateNumAggFields();
+        }
+
+        function removeLastFieldGroup() {
+            var container = document.getElementById('agg_fields');
+            container.removeChild(container.lastElementChild);
+            updateNumAggFields();
+        }
+
+        function removeFieldGroup(deleteIcon) {
+            var fieldGroup = deleteIcon.closest('.field-group');
+            fieldGroup.remove();
+            updateNumAggFields();
+        }
 
         function addMoveButtonsListeners() {
             document.querySelectorAll('.move-up').forEach(function(btn) {
@@ -184,6 +221,7 @@
 
                     if (prevFieldGroup) {
                         currentFieldGroup.parentNode.insertBefore(currentFieldGroup, prevFieldGroup);
+                        updateNumAggFields();
                     }
                 });
             });
@@ -195,11 +233,48 @@
 
                     if (nextFieldGroup) {
                         currentFieldGroup.parentNode.insertBefore(nextFieldGroup, currentFieldGroup);
+                        updateNumAggFields();
                     }
                 });
             });
         }
+
+        function updateNumAggFields() {
+            var fieldGroups = document.querySelectorAll('#agg_fields .field-group');
+            document.getElementById('num_agg_fields').value = fieldGroups.length;
+
+            var fieldOrder = Array.from(fieldGroups).map(function(fieldGroup, index) {
+                fieldGroup.dataset.index = index + 1; // Reassign index data attribute
+                return index + 1;
+            });
+
+            document.getElementById('agg_fields_order').value = fieldOrder.join(',');
+        }
+
+        function disableGroupByInAggFields() {
+            var groupByCol = document.getElementById('group_by_col').value;
+            var aggFieldDropdowns = document.querySelectorAll('#agg_fields select[name^="agg_field"]');
+
+            aggFieldDropdowns.forEach(function(dropdown) {
+                dropdown.querySelectorAll('option').forEach(function(option) {
+                    if (option.value === groupByCol) {
+                        option.disabled = true;
+                    } else {
+                        option.disabled = false;
+                    }
+                });
+            });
+        }
+
+        document.getElementById('group_by_col').addEventListener('change', disableGroupByInAggFields);
+
+        function resetForm() {
+            document.getElementById('agg_fields').innerHTML = '';
+            document.getElementById('agg_fields_order').value = '';
+            document.getElementById('num_agg_fields').value = 0;
+        }
     </script>
+
     {% endif %}
 </body>
 </html>
